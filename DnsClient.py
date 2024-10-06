@@ -1,5 +1,6 @@
 import sys
 import socket
+import random
 
 def set_arguments(args):
     parameters = {
@@ -35,17 +36,76 @@ def set_arguments(args):
     return parameters
 
 
-if __name__ == "__main__":
+def header():
+    # need to generate unique id 
+    id = hex(random.randint(0, 65535))
+    print(id)
 
+    # QR will always be 0 since we are only sending queries to server
+    qr = 0
+
+    # OPCode = 0 for standard query
+    opcode = 0
+
+    # AA only meaningful in responses
+    aa = 0 
+
+    # TC indicates if message was truncated
+    tc = 0
+
+    # RD = 1 for recursive query
+    rd = 1 
+
+    # RA indicates if server supports recursive queries
+    ra = 0
+
+    # Z to be set to 0
+    z = 0
+
+    # Rcode only meaningful in responses
+    rcode = 0
+
+    # QDcount always 1 
+    qdcount = 1
+
+    # Ancount
+    ancount = 0
+
+    nscount = 0
+
+    arcount = 0
+
+def qname(name):
+    qname = 0
+    labels = name.split(".")
+    for label in labels:
+        l = len(label)
+        qname = qname << 8 | l
+        for i in range(l):
+            qname = qname << 8 | ord(label[i])
+    return hex(qname)
+
+
+
+
+     
+
+
+
+if __name__ == "__main__":
+    """ 
     para = set_arguments(sys.argv)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    
     sock.connect((para["server"], para["port"]))
     print("connected")
     sock.close()
     print("closed")
-
     for x in para:
         print(f"{x}:{para[x]}")
+    """
+    print(qname("www.mcgill.ca"))
+    
                 
 
 
