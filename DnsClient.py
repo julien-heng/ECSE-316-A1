@@ -1,6 +1,7 @@
 import sys
 import socket
 import random
+import time
 
 def set_arguments(args):
     parameters = {
@@ -47,7 +48,7 @@ def dns_question(parameters):
             qname = qname + bytes(label[i], 'utf-8')
     qname = qname + (0).to_bytes()
     
-    # QTYPE representation in hex
+    # QTYPE representation in bytes
     if parameters["type"] == "A":
         qtype = (0x00).to_bytes() + (0x01).to_bytes()
     elif parameters["type"] == "NX":
@@ -55,29 +56,19 @@ def dns_question(parameters):
     else: 
         qtype = (0x00).to_bytes() + (0x02).to_bytes()
     
-    #QCLASS representation in hex
+    #QCLASS representation in bytes
     qclass = (0x00).to_bytes() + (0x01).to_bytes()
 
     question = qname + qtype + qclass
     return question
-
-"""
- ABOVE IS TESTED
-"""
-
-def dns_answer(parameters):
-
-    return
-
-
 
 def dns_header():
 
     header = 0x0
 
     # ID reprensentation in hex 
-    #id = random.randint(0x0000, 0xffff)
-    header = 0x827a
+    id = random.randint(0x0000, 0xffff)
+    header = header | id
 
     # QR = 0 for queries
     qr = 0x0
@@ -127,60 +118,54 @@ def dns_header():
     arcount = 0
     header = header << 16 | arcount
 
-    return hex(header)[2:]
+    return header.to_bytes(12)
      
+def send_query(parameters, packet):
+    # set up socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect((parameters["server"], parameters["port"]))
+    sock.settimeout(parameters["timeout"])
+
+    attempts = 0
+    answer = b''
+    duration = 0
+    while attempts < parameters["max_retries"]:
+        try:
+            start_time = time.time()
+            sock.send(packet)
+            answer = sock.recv(1024)
+            while answer == b'':
+                answer = sock.recv(1024)
+            end_time = time.time()
+            duration = end_time - start_time
+            attempts += 1
+            break
+        except TimeoutError:
+            attempts += 1
+
+    sock.close()
+    print(answer)
+    print(f"{duration} s")
+    print(f"{attempts} attempts")
 
 
 
 
 if __name__ == "__main__":
     
+    # Set up packet for query
     parameters = set_arguments(sys.argv)
+    packet = dns_header() + dns_question(parameters)
 
-    parameters["server"] = "8.8.8.8"
-    parameters["name"] = "www.mcgill.ca"
-    print(parameters)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    
-    sock.connect((parameters["server"], parameters["port"]))
+    # send and receive packets
+    send_query(parameters, packet)
 
     
-    #sock.listen(1)
+    
 
     
-    question = dns_question(parameters)
-    header = dns_header()
 
-    print(question)
-    print(header)
-    packet = bytes.fromhex(header) + question
-    print(packet)
     
-    totalsent = 0
-    while totalsent < len(packet):
-        sent = sock.send(packet[totalsent:])
-        if sent == 0:
-            raise RuntimeError("socket connection broken")
-        totalsent = totalsent + sent    
-        
-    MSG_LEN = 1024
-    chunks = []
-    bytes_recd = 0
-    while bytes_recd < MSG_LEN:
-        chunk = sock.recv(1024)
-        if chunk == b'':
-            sock.close()
-            raise RuntimeError("socket connection broken read")
-        chunks.append(chunk)
-        print(chunks)
-        bytes_recd = bytes_recd + len(chunk)
-    out = b''.join(chunks)    
-    
-    #print(packet)
-
-    print(out)
-    sock.close()
     
 
 
