@@ -126,28 +126,37 @@ def send_query(parameters, packet):
     sock.connect((parameters["server"], parameters["port"]))
     sock.settimeout(parameters["timeout"])
 
-    attempts = 0
+    retries = 0
     answer = b''
     duration = 0
-    while attempts < parameters["max_retries"]:
+    while retries < parameters["max_retries"]:
         try:
             start_time = time.time()
             sock.send(packet)
+            if retries == 0:
+                print(f"DnsClient sending request for {parameters['name']}")
+                print(f"Server: {parameters['server']}")
+                print(f"Request type: {parameters['type']}")
             answer = sock.recv(1024)
             while answer == b'':
                 answer = sock.recv(1024)
             end_time = time.time()
             duration = end_time - start_time
-            attempts += 1
+            print(f"Response received after {round(duration, 5)} seconds ({retries} retries)")
             break
         except TimeoutError:
-            attempts += 1
+            retries += 1
 
     sock.close()
-    print(answer)
-    print(f"{duration} s")
-    print(f"{attempts} attempts")
+    if answer == b'':
+        print(f"ERROR\tMaximum number of retries {parameters['max_retries']} exceeded")
+        return 
+    
+    return parse_dns_answer(answer)
 
+def parse_dns_answer(answer):
+    # to be implemented
+    return
 
 
 
@@ -156,9 +165,10 @@ if __name__ == "__main__":
     # Set up packet for query
     parameters = set_arguments(sys.argv)
     packet = dns_header() + dns_question(parameters)
-
+  
     # send and receive packets
-    send_query(parameters, packet)
+    response = send_query(parameters, packet)
+    #dns_answer(response, parameters)
 
     
     
