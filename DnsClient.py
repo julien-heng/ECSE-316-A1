@@ -158,6 +158,11 @@ def parse_dns_answer(answer, l):
 
     # AA
     aa = (answer[2] & 0b00000100) >> 2
+    if aa == 1:
+        aa = 'auth'
+    else:
+        aa = 'nonauth'
+
     # ANCOUNT 
     ancount = (answer[6] << 8) | answer[7]
     # ARCOUNT
@@ -176,7 +181,6 @@ def parse_dns_answer(answer, l):
 
         # TYPE 
         type_rdata = (answer[type_index] << 8) | answer[type_index + 1]
-        print(type_rdata)
 
         # TTL
         ttl_index = type_index + 4
@@ -204,20 +208,13 @@ def parse_dns_answer(answer, l):
             start_index = rdata_index + rdlength
             print(f"CNAME\t{rdata}\t{ttl}\t{aa}")
         else :
-
-
-            
-            # TO BE DONE
-
-
-
+            preference = (answer[rdata_index] << 8) | answer[rdata_index + 1]
+            result = parse_name(answer, rdata_index + 2)
+            rdata = result[1]
             start_index = rdata_index + rdlength
-            print("mx")
+            print(f"MX\t{rdata}\t{preference}\t{ttl}\t{aa}")
 
     print(f"***Additional Section ({arcount} records)***")
-
-    # to be implemented
-    return
 
 def parse_name(answer, start_index):
     next_index = 0
@@ -231,7 +228,7 @@ def parse_name(answer, start_index):
 
     parse = True
     name = ''
-    
+
     while parse:
 
         length = answer[offset]
@@ -242,13 +239,15 @@ def parse_name(answer, start_index):
             parse = False
             if next_index < offset + length + 2:
                 next_index = offset + length + 2
-        elif (answer[offset + length + 1] >> 6) == 0b11:
-            next_index = offset + length + 3
+        elif (answer[offset + length + 1] >> 6) == 0b11 :  
+            if next_index < offset + length + 3:
+                next_index = offset + length + 3
             offset = (answer[offset + length + 1] & 0b00111111) << 8 | answer[offset + length + 2]
         else:
             offset = offset + length + 1  
             name = name + '.'
 
+    
     return [next_index, name]
 
 
