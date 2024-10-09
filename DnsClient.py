@@ -28,8 +28,8 @@ def set_arguments(args):
                     i = i + 1  
         elif args[i] == "-mx":
             parameters["type"] = "MX"
-        elif args[i] == "-nx":   
-            parameters["type"] = "NX"  
+        elif args[i] == "-ns":   
+            parameters["type"] = "NS"  
         elif args[i][0] == "@":
             parameters["server"] = args[i][1:]
             parameters["name"] = args[i + 1]  
@@ -51,7 +51,7 @@ def dns_question(parameters):
     # QTYPE representation in bytes
     if parameters["type"] == "A":
         qtype = (0x00).to_bytes() + (0x01).to_bytes()
-    elif parameters["type"] == "NX":
+    elif parameters["type"] == "NS":
         qtype = (0x00).to_bytes() + (0x0f).to_bytes()
     else: 
         qtype = (0x00).to_bytes() + (0x02).to_bytes()
@@ -152,12 +152,104 @@ def send_query(parameters, packet):
         print(f"ERROR\tMaximum number of retries {parameters['max_retries']} exceeded")
         return 
     
-    return parse_dns_answer(answer)
+    return parse_dns_answer(answer, len(packet))
 
-def parse_dns_answer(answer):
+def parse_dns_answer(answer, l):
+
+    # AA
+    aa = (answer[2] & 0b00000100) >> 2
+    # ANCOUNT 
+    ancount = (answer[6] << 8) | answer[7]
+    # ARCOUNT
+    arcount = (answer[10] << 8) | answer[11]
+
+    print(f"***Answer Section ({ancount} records)***")
+
+    start_index = l
+
+    for i in range(ancount):
+
+        # NAME 
+        result = parse_name(answer, start_index)
+        name = result[1]
+        type_index = result[0]
+
+        # TYPE 
+        type_rdata = (answer[type_index] << 8) | answer[type_index + 1]
+        print(type_rdata)
+
+        # TTL
+        ttl_index = type_index + 4
+        ttl = (answer[ttl_index] << 8) | answer[ttl_index + 1]
+        ttl = (ttl << 8) | answer[ttl_index + 2]
+        ttl = (ttl << 8) | answer[ttl_index + 3]
+
+        # RDLENGTH
+        rdlength = (answer[ttl_index + 4] << 8) | answer[ttl_index + 5]
+
+        # RDATA
+        rdata_index = ttl_index + 6
+        if type_rdata == 0x1:
+            rdata = '.'.join([str(answer[rdata_index + i]) for i in range(4)])
+            start_index = rdata_index + 4
+            print(f"IP\t{rdata}\t{ttl}\t{aa}")
+        elif type_rdata == 0x2:
+            result = parse_name(answer, rdata_index)
+            rdata = result[1]
+            start_index = rdata_index + rdlength
+            print(f"NS\t{rdata}\t{ttl}\t{aa}")
+        elif type_rdata == 0x5:
+            result = parse_name(answer, rdata_index)
+            rdata = result[1]
+            start_index = rdata_index + rdlength
+            print(f"CNAME\t{rdata}\t{ttl}\t{aa}")
+        else :
+
+
+            
+            # TO BE DONE
+
+
+
+            start_index = rdata_index + rdlength
+            print("mx")
+
+    print(f"***Additional Section ({arcount} records)***")
+
     # to be implemented
     return
 
+def parse_name(answer, start_index):
+    next_index = 0
+    compressed = (answer[start_index] >> 6) == 0b11
+
+    if compressed:
+        offset = (answer[start_index] & 0b00111111) << 8 | answer[start_index + 1]
+        next_index = start_index + 2
+    else:
+        offset = start_index
+
+    parse = True
+    name = ''
+    
+    while parse:
+
+        length = answer[offset]
+        for k in range(length):
+            name += chr(answer[offset + 1 + k])
+
+        if answer[offset + length + 1] == 0:
+            parse = False
+            if next_index < offset + length + 2:
+                next_index = offset + length + 2
+        elif (answer[offset + length + 1] >> 6) == 0b11:
+            next_index = offset + length + 3
+            offset = (answer[offset + length + 1] & 0b00111111) << 8 | answer[offset + length + 2]
+        else:
+            offset = offset + length + 1  
+            name = name + '.'
+
+    return [next_index, name]
 
 
 if __name__ == "__main__":
