@@ -16,23 +16,49 @@ def set_arguments(args):
     for i in range(1, len(args)):
         if args[i] == "-t":
             if args[i + 1].isdigit():
-                    parameters["timeout"] = int(args[i + 1])
-                    i = i + 1
+                parameters["timeout"] = int(args[i + 1])
+                i = i + 1
+            else:
+                print(f"ERROR\tIncorrect input syntax: expected number after argument {args[i]}")
+                return None
         elif args[i] == "-r":
             if args[i + 1].isdigit():
-                    parameters["max_retries"] = int(args[i + 1])
-                    i = i + 1
+                parameters["max_retries"] = int(args[i + 1])
+                i = i + 1
+            else:
+                print(f"ERROR\tIncorrect input syntax: expected number after argument {args[i]}")
+                return None
         elif args[i] == "-p":  
             if args[i + 1].isdigit():
-                    parameters["port"] = int(args[i + 1])
-                    i = i + 1  
+                parameters["port"] = int(args[i + 1])
+                i = i + 1 
+            else:
+                print(f"ERROR\tIncorrect input syntax: expected number after argument {args[i]}")
+                return None
         elif args[i] == "-mx":
+            if parameters["type"] != "A":
+                print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
+                return None
             parameters["type"] = "MX"
-        elif args[i] == "-ns":   
+        elif args[i] == "-ns":
+            if parameters["type"] != "A":
+                print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
+                return None 
             parameters["type"] = "NS"  
         elif args[i][0] == "@":
             parameters["server"] = args[i][1:]
-            parameters["name"] = args[i + 1]  
+            parameters["name"] = args[i + 1] 
+            if i != len(args) - 2:
+                print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i+2]}")
+                return None
+            else:
+                return parameters
+        elif args[i].isdigit():
+            print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
+            return None
+        else:
+            print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
+            return None
 
     return parameters
 
@@ -152,9 +178,25 @@ def send_query(parameters, packet):
         print(f"ERROR\tMaximum number of retries {parameters['max_retries']} exceeded")
         return 
     
+    packet_id = (packet[0] << 8) | packet[1]
+    answer_id = (answer[0] << 8) | answer[1]
+    if packet_id != answer_id:
+        print(f"ERROR\tUnexpected response")
+        return 
+
     return parse_dns_answer(answer, len(packet))
 
 def parse_dns_answer(answer, l):
+
+    # ANCOUNT 
+    ancount = (answer[6] << 8) | answer[7]
+    # ARCOUNT
+    arcount = (answer[10] << 8) | answer[11]
+
+    # no record found 
+    if ancount == 0:
+        print(f"NOTFOUND")
+        return
 
     # AA
     aa = (answer[2] & 0b00000100) >> 2
@@ -163,15 +205,9 @@ def parse_dns_answer(answer, l):
     else:
         aa = 'nonauth'
 
-    # ANCOUNT 
-    ancount = (answer[6] << 8) | answer[7]
-    # ARCOUNT
-    arcount = (answer[10] << 8) | answer[11]
-
     print(f"***Answer Section ({ancount} records)***")
 
     start_index = l
-
     for i in range(ancount):
 
         # NAME 
@@ -214,7 +250,51 @@ def parse_dns_answer(answer, l):
             start_index = rdata_index + rdlength
             print(f"MX\t{rdata}\t{preference}\t{ttl}\t{aa}")
 
+    # parsing additional records the same answers are parsed
+
     print(f"***Additional Section ({arcount} records)***")
+
+    for j in range(arcount):
+
+        # NAME 
+        result = parse_name(answer, start_index)
+        name = result[1]
+        type_index = result[0]
+
+        # TYPE 
+        type_rdata = (answer[type_index] << 8) | answer[type_index + 1]
+
+        # TTL
+        ttl_index = type_index + 4
+        ttl = (answer[ttl_index] << 8) | answer[ttl_index + 1]
+        ttl = (ttl << 8) | answer[ttl_index + 2]
+        ttl = (ttl << 8) | answer[ttl_index + 3]
+
+        # RDLENGTH
+        rdlength = (answer[ttl_index + 4] << 8) | answer[ttl_index + 5]
+
+        # RDATA
+        rdata_index = ttl_index + 6
+        if type_rdata == 0x1:
+            rdata = '.'.join([str(answer[rdata_index + i]) for i in range(4)])
+            start_index = rdata_index + 4
+            print(f"IP\t{rdata}\t{ttl}\t{aa}")
+        elif type_rdata == 0x2:
+            result = parse_name(answer, rdata_index)
+            rdata = result[1]
+            start_index = rdata_index + rdlength
+            print(f"NS\t{rdata}\t{ttl}\t{aa}")
+        elif type_rdata == 0x5:
+            result = parse_name(answer, rdata_index)
+            rdata = result[1]
+            start_index = rdata_index + rdlength
+            print(f"CNAME\t{rdata}\t{ttl}\t{aa}")
+        else :
+            preference = (answer[rdata_index] << 8) | answer[rdata_index + 1]
+            result = parse_name(answer, rdata_index + 2)
+            rdata = result[1]
+            start_index = rdata_index + rdlength
+            print(f"MX\t{rdata}\t{preference}\t{ttl}\t{aa}")
 
 def parse_name(answer, start_index):
     next_index = 0
@@ -255,11 +335,13 @@ if __name__ == "__main__":
     
     # Set up packet for query
     parameters = set_arguments(sys.argv)
-    packet = dns_header() + dns_question(parameters)
+
+    if parameters is not None:
+        packet = dns_header() + dns_question(parameters)
   
-    # send and receive packets
-    response = send_query(parameters, packet)
-    #dns_answer(response, parameters)
+        # send and receive packets
+        response = send_query(parameters, packet)
+    
 
     
     
