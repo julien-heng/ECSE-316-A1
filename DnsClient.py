@@ -69,21 +69,21 @@ def dns_question(parameters):
     labels = parameters["name"].split(".")
     for label in labels:
         l = len(label)
-        qname = qname + l.to_bytes()
+        qname = qname + l.to_bytes(1)
         for i in range(l):
             qname = qname + bytes(label[i], 'utf-8')
-    qname = qname + (0).to_bytes()
+    qname = qname + (0).to_bytes(1)
     
     # QTYPE representation in bytes
     if parameters["type"] == "A":
-        qtype = (0x00).to_bytes() + (0x01).to_bytes()
+        qtype = (0x00).to_bytes(1) + (0x01).to_bytes(1)
     elif parameters["type"] == "NS":
-        qtype = (0x00).to_bytes() + (0x0f).to_bytes()
+        qtype = (0x00).to_bytes(1) + (0x0f).to_bytes(1)
     else: 
-        qtype = (0x00).to_bytes() + (0x02).to_bytes()
+        qtype = (0x00).to_bytes(1) + (0x02).to_bytes(1)
     
     #QCLASS representation in bytes
-    qclass = (0x00).to_bytes() + (0x01).to_bytes()
+    qclass = (0x00).to_bytes(1) + (0x01).to_bytes(1)
 
     question = qname + qtype + qclass
     return question
