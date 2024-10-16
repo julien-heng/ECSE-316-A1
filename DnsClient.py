@@ -13,25 +13,26 @@ def set_arguments(args):
         "name": ""
     }
 
-    for i in range(1, len(args)):
+    i = 1
+    while i < len(args):
         if args[i] == "-t":
-            if args[i + 1].isdigit():
+            if i+1 < len(args) and args[i+1].isdigit():
                 parameters["timeout"] = int(args[i + 1])
-                i = i + 1
+                i = i + 2
             else:
                 print(f"ERROR\tIncorrect input syntax: expected number after argument {args[i]}")
                 return None
         elif args[i] == "-r":
-            if args[i + 1].isdigit():
+            if i+1 < len(args) and args[i + 1].isdigit():
                 parameters["max_retries"] = int(args[i + 1])
-                i = i + 1
+                i = i + 2
             else:
                 print(f"ERROR\tIncorrect input syntax: expected number after argument {args[i]}")
                 return None
         elif args[i] == "-p":  
-            if args[i + 1].isdigit():
+            if i+1 < len(args) and args[i + 1].isdigit():
                 parameters["port"] = int(args[i + 1])
-                i = i + 1 
+                i = i + 2
             else:
                 print(f"ERROR\tIncorrect input syntax: expected number after argument {args[i]}")
                 return None
@@ -40,26 +41,31 @@ def set_arguments(args):
                 print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
                 return None
             parameters["type"] = "MX"
+            i = i + 1
         elif args[i] == "-ns":
             if parameters["type"] != "A":
                 print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
                 return None 
             parameters["type"] = "NS"  
+            i = i + 1
         elif args[i][0] == "@":
             parameters["server"] = args[i][1:]
+            if i+1 >= len(args):
+                print(f"ERROR\tIncorrect input syntax: missing name argument")
+                return None
             parameters["name"] = args[i + 1] 
             if i != len(args) - 2:
                 print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i+2]}")
                 return None
             else:
                 return parameters
-        elif args[i].isdigit():
-            print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
-            return None
         else:
             print(f"ERROR\tIncorrect input syntax: unexpected argument {args[i]}")
             return None
-
+    # check if all required arguments are present
+    if parameters["server"] == "":
+        print(f"ERROR\tIncorrect input syntax: missing server argument")
+        return None
     return parameters
 
 def dns_question(parameters):
@@ -170,7 +176,7 @@ def send_query(parameters, packet):
             duration = end_time - start_time
             print(f"Response received after {round(duration, 5)} seconds ({retries} retries)")
             break
-        except TimeoutError:
+        except (TimeoutError, socket.timeout):
             retries += 1
 
     sock.close()
