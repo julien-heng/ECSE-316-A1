@@ -83,9 +83,9 @@ def dns_question(parameters):
     # QTYPE representation in bytes
     if parameters["type"] == "A":
         qtype = (0x0001).to_bytes(2, byteorder='big')
-    elif parameters["type"] == "NS":
+    elif parameters["type"] == "MX":
         qtype = (0x000f).to_bytes(2, byteorder='big')
-    else: 
+    else: # "NS"
         qtype = (0x0002).to_bytes(2, byteorder='big')
     
     #QCLASS representation in bytes
