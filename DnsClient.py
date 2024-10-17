@@ -189,7 +189,6 @@ def send_query(parameters, packet):
     if packet_id != answer_id:
         print(f"ERROR\tUnexpected response")
         return 
-
     return parse_dns_answer(answer, len(packet))
 
 def parse_dns_answer(answer, l):
@@ -232,7 +231,6 @@ def parse_dns_answer(answer, l):
 
         # RDLENGTH
         rdlength = (answer[ttl_index + 4] << 8) | answer[ttl_index + 5]
-
         # RDATA
         rdata_index = ttl_index + 6
         if type_rdata == 0x1:
@@ -316,7 +314,6 @@ def parse_name(answer, start_index):
     name = ''
 
     while parse:
-
         length = answer[offset]
         for k in range(length):
             name += chr(answer[offset + 1 + k])
@@ -328,12 +325,12 @@ def parse_name(answer, start_index):
         elif (answer[offset + length + 1] >> 6) == 0b11 :  
             if next_index < offset + length + 3:
                 next_index = offset + length + 3
+            name = name + '.'
             offset = (answer[offset + length + 1] & 0b00111111) << 8 | answer[offset + length + 2]
         else:
             offset = offset + length + 1  
             name = name + '.'
 
-    
     return [next_index, name]
 
 
